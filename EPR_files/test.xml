@@ -1,0 +1,82 @@
+<eprEvent:EventRoot xmlns:eprEvent="http://wizzair.com/schemas/epr/event"
+    xmlns:ns32="http://stl.sabre.com/AirCrews/CrewManager10/EventDefinitions/v15"
+    xmlns:ns22="http://stl.sabre.com/AirCrews/CrewManager10/EventTypes/v15"
+    xmlns:ns21="http://stl.sabre.com/AirCrews/CrewManager10/CommonDataTypes/v17">
+    
+    <eprEvent:EventDetails receivedAt="2024-12-03T16:19:09.1593620Z" 
+        eventId="aa98bd27-d2e2-4e52-9941-a4bf97d8c57d"
+        customerId="W6" customerAppId="SMG1.SBR-CREWRMG.3F8E8DC4" 
+        conversationId="aa98bd27-d2e2-4e52-9941-a4bf97d8c57d" 
+        eventTimestamp="2024-12-03T16:19:08.467Z"/>
+
+    <eprEvent:Event>
+        <ns23:CrewChangedRQ xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+            company="W6" version="15.0.0">
+            <ns23:Change changeType="MODIFY" staffNumber="6936" trigger="SAE:CA6-SaPHR#">
+                <ns22:Changes>
+                    <ns22:Change>crewDocuments</ns22:Change>
+                    <ns22:Change>crewFleets</ns22:Change>
+                    <ns22:Change>companyAssignments</ns22:Change>
+                </ns22:Changes>
+            </ns23:Change>
+        </ns23:CrewChangedRQ>
+    </eprEvent:Event>
+	<eprEvent:DataList>
+		<cmx:GetCrewsRS xmlns:cmx="http://stl.sabre.com/AirCrews/CrewManager10/CrewService/v17">
+			<cmx:CrewList>
+				<cmx:Crew staffNumber="6936">
+					<cmx:CrewPersonalInfo firstName="Tamas" middleName="DANKO" gender="MALE"/>
+					<cmx:CrewEmploymentInfo employmentDate="2015-04-13"/>
+					
+					<cmx:CrewBases>
+						<cmx:CrewBase effectiveDate="2018-10-01T00:00:00.000Z" 
+							expiryDate="2024-10-26T23:59:59.000Z" companyCode="W6">DEB</cmx:CrewBase>
+						<cmx:CrewBase effectiveDate="2019-12-31T00:00:00.000Z" 
+							expiryDate="2029-12-31T00:00:00.000Z" companyCode="W6">BUD</cmx:CrewBase>
+					</cmx:CrewBases>
+
+					<cmx:CrewFleets>
+						<cmx:CrewFleet effectiveDate="2018-10-01T00:00:00.000Z"
+							expiryDate="2019-12-31T23:59:59.999Z">
+							<cmx:FleetKey fleetCode="321" companyCode="W6"/>
+						</cmx:CrewFleet>
+						<cmx:CrewFleet effectiveDate="2020-01-01T00:00:00.000Z"
+							expiryDate="2024-10-26T23:59:59.000Z">
+							<cmx:FleetKey fleetCode="321" companyCode="W6"/>
+						</cmx:CrewFleet>
+						<cmx:CrewFleet effectiveDate="2024-10-27T00:00:00.000Z">
+							<cmx:FleetKey fleetCode="321" companyCode="W6"/>
+						</cmx:CrewFleet>
+					</cmx:CrewFleets>
+
+					<cmx:CrewRanks>
+						<cmx:CrewRank effectiveDate="2018-10-01T00:00:00.000Z">
+							<cmx:RankKey rankCode="SF" companyCode="W6"/>
+						</cmx:CrewRank>
+					</cmx:CrewRanks>
+
+					<cmx:CrewSeniority hireDate="2015-04-13" rehireDate="2015-04-13"/>
+					<cmx:CrewBirthInformation birthDate="1968-06-06" country="HU" city="Nyíregyháza"/>
+
+					<cmx:CrewAttributes>
+						<cmx:CustomDatedAttribute name="Marital Status">Married</cmx:CustomDatedAttribute>
+						<cmx:CustomDatedAttribute name="Smoker">False</cmx:CustomDatedAttribute>
+					</cmx:CrewAttributes>
+
+					<cmx:CrewEmails>
+						<cmx:CrewEmail emailType="PRIMARY">tamas.danko@wizzair.com</cmx:CrewEmail>
+					</cmx:CrewEmails>
+
+					<cmx:CrewCompanyAssignments>
+						<cmx:CrewCompanyAssignment staffNumber="6936"
+							expiryDate="2024-10-26T23:59:59.000Z" companyCode="W6"
+							effectiveDate="2018-10-01T00:00:00.000Z"/>
+						<cmx:CrewCompanyAssignment staffNumber="6936"
+							effectiveDate="2024-10-27T00:00:00.000Z" companyCode="W6"/>
+					</cmx:CrewCompanyAssignments>
+
+				</cmx:Crew>
+			</cmx:CrewList>
+		</cmx:GetCrewsRS>
+	</eprEvent:DataList>
+</eprEvent:EventRoot>

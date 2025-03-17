@@ -1,0 +1,16 @@
+{
+  "dependencies": {
+    "express": "^4.21.2",
+    "xml2js": "^0.6.2"
+  },
+  "name": "epr",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}
