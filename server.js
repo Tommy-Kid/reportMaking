@@ -2,7 +2,6 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const xml2js = require("xml2js");
-const readline = require("readline");
 
 const app = express();
 const PORT = 3000;
@@ -12,6 +11,12 @@ const parser = new xml2js.Parser({
     tagNameProcessors: [(name) => name.replace(/^.*:/, '')]
 });
 
+// Serve static files (CSS & JS)
+app.use(express.static(path.join(__dirname, "public")));
+
+let shouldStop = false; // control flag
+
+// Validation rules
 const validationRules = {
     checkTags: [
         "GetAircraftTypes",
@@ -26,39 +31,40 @@ const validationRules = {
     }
 };
 
-app.get("/:libraryRoot", async (req, res) => {
+// Render UI
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// API to start processing
+app.get("/start/:libraryRoot", async (req, res) => {
+    shouldStop = false;
     const libraryRoot = req.params.libraryRoot;
     const folderPath = path.join(__dirname, libraryRoot);
-    const reportFile = path.join(__dirname, "report.txt");
-
-    if (fs.existsSync(reportFile)) {
-        fs.unlinkSync(reportFile);
-    }
 
     if (!fs.existsSync(folderPath)) {
-        return res.status(404).json({ error: "Directory not found" });
+        return res.json({ error: "Directory not found" });
     }
 
     const files = fs.readdirSync(folderPath).filter(file => file.endsWith(".xml"));
-
     if (files.length === 0) {
-        return res.status(404).json({ error: "No XML files found!" });
+        return res.json({ error: "No XML files found!" });
     }
 
-    const totalFiles = files.length;
+    // Create timestamped report file (e.g., report-2025-03-17-15-30-12.txt)
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const reportFileName = `report-${timestamp}.txt`;
+    const reportFile = path.join(__dirname, reportFileName);
+
     let report = { passed: [], failed: [] };
+    let logs = [];
 
-    const spinnerFrames = ['|', '/', '-', '\\'];
-    let spinnerIndex = 0;
+    for (const file of files) {
+        if (shouldStop) {
+            logs.push(`⏹️ Processing stopped by user!`);
+            break;
+        }
 
-    function updateSpinner(progress) {
-        readline.clearLine(process.stdout, 0);
-        readline.cursorTo(process.stdout, 0);
-        process.stdout.write(`${spinnerFrames[spinnerIndex++ % spinnerFrames.length]} Processing ${progress}`);
-    }
-
-    for (let i = 0; i < totalFiles; i++) {
-        const file = files[i];
         const filePath = path.join(folderPath, file);
         const xmlContent = fs.readFileSync(filePath, "utf-8");
 
@@ -68,64 +74,67 @@ app.get("/:libraryRoot", async (req, res) => {
             const parsedData = result[rootKey];
             const fileReport = { file, errors: [], passed: [], failed: [] };
 
-            let tagFound = false;
+            // ---- TAG CHECK ----
             validationRules.checkTags.forEach(tag => {
-                if (findTag(parsedData, tag)) {
+                const tagExists = findTag(parsedData, tag);
+                if (tagExists) {
                     fileReport.passed.push(`✅ Tag found: ${tag}`);
-                    tagFound = true;
+                } else {
+                    fileReport.failed.push(`❌ Missing tag: ${tag}`);
                 }
             });
 
-            let attributeMatched = checkAttributes(parsedData, validationRules, fileReport);
-
-            // Only include in report if it has either a tag found or attribute match
-            if (tagFound || attributeMatched) {
-                if (fileReport.failed.length > 0) {
-                    report.failed.push(fileReport);
-                } else {
-                    report.passed.push(fileReport);
+            // ---- ATTRIBUTES CHECK ----
+            let attributeMatched = false;
+            for (const [attribute, expectedValues] of Object.entries(validationRules.checkValues)) {
+                if (checkAttributes(parsedData, validationRules, fileReport)) {
+                    attributeMatched = true;
                 }
-
-                // Write to report
-                let txtBlock = `\n🗂️ File: ${file}\n`;
-
-                if (fileReport.passed.length > 0) {
-                    txtBlock += `✔️ PASSED:\n`;
-                    fileReport.passed.forEach(line => txtBlock += `  - ${line}\n`);
-                }
-
-                if (fileReport.failed.length > 0) {
-                    txtBlock += `❌ FAILED:\n`;
-                    fileReport.failed.forEach(line => txtBlock += `  - ${line}\n`);
-                }
-
-                txtBlock += `----------------------\n`;
-                fs.appendFileSync(reportFile, txtBlock, "utf-8");
             }
+
+            if (fileReport.passed.length > 0 || attributeMatched) {
+                report.passed.push(fileReport);
+            } else {
+                report.failed.push(fileReport);
+            }
+
+            // ---- Write to report file ----
+            let txtBlock = `\n🗂️ File: ${file}\n`;
+            if (fileReport.passed.length > 0) {
+                txtBlock += `✔️ PASSED:\n`;
+                fileReport.passed.forEach(line => txtBlock += `  - ${line}\n`);
+            }
+            if (fileReport.failed.length > 0) {
+                txtBlock += `❌ FAILED:\n`;
+                fileReport.failed.forEach(line => txtBlock += `  - ${line}\n`);
+            }
+            txtBlock += `----------------------\n`;
+            fs.appendFileSync(reportFile, txtBlock, "utf-8");
+
+            logs.push(`✔️ Processed: ${file}`);
+
         } catch (error) {
             const errorMsg = `File: ${file}\n❌ Error parsing XML\n----------------------\n`;
             fs.appendFileSync(reportFile, errorMsg, "utf-8");
-            report.failed.push({ file, errors: ["Invalid XML format"] });
+            logs.push(`❌ Error processing: ${file}`);
         }
-
-        updateSpinner(`${i + 1}/${totalFiles}`);
     }
 
-    // Finalize
-    readline.clearLine(process.stdout, 0);
-    readline.cursorTo(process.stdout, 0);
-    console.log("🎉 Összes fájl feldolgozva!");
+    if (!shouldStop) {
+        fs.appendFileSync(reportFile, `🎉 Összes fájl feldolgozva!\n`, "utf-8");
+        logs.push("🎉 Összes fájl feldolgozva!");
+    }
 
-    fs.appendFileSync(reportFile, `🎉 Összes fájl feldolgozva!\n`, "utf-8");
-
-    res.json({ passed: report.passed.length, failed: report.failed.length, reportFile: "report.txt" });
+    res.json({ logs, passed: report.passed.length, failed: report.failed.length, reportFile: reportFileName });
 });
 
-app.listen(PORT, () => {
-    console.log(`Server is running at http://localhost:${PORT}`);
+// API to stop processing
+app.post("/stop", (req, res) => {
+    shouldStop = true;
+    res.json({ status: "stopping" });
 });
 
-// Attribute checker
+// Utility functions
 function checkAttributes(obj, validationRules, fileReport, matchedAttributes = new Set()) {
     let matched = false;
     for (const key in obj) {
@@ -155,13 +164,13 @@ function checkAttributes(obj, validationRules, fileReport, matchedAttributes = n
 
 function findTag(obj, tag) {
     if (typeof obj !== "object" || obj === null) return false;
-    if (obj.hasOwnProperty(tag)) {
-        return true;
-    }
+    if (obj.hasOwnProperty(tag)) return true;
     for (const key in obj) {
-        if (findTag(obj[key], tag)) {
-            return true;
-        }
+        if (findTag(obj[key], tag)) return true;
     }
     return false;
 }
+
+app.listen(PORT, () => {
+    console.log(`Server is running at http://localhost:${PORT}`);
+});

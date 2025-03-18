@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XML Processor</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        .loader { border: 8px solid #f3f3f3; border-top: 8px solid #555; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 10px auto; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .logs { background: #f4f4f4; padding: 10px; border-radius: 5px; max-height: 300px; overflow-y: auto; }
+        button { margin: 10px; padding: 10px 20px; cursor: pointer; }
+        input { padding: 8px; margin-right: 10px; }
+    </style>
+</head>
+
+<body>
+    <h1>XML Processor UI</h1>
+
+    <div>
+        <input type="text" id="folderInput" placeholder="Enter folder (e.g., EPR_files)">
+        <button onclick="start()">▶️ Start Processing</button>
+        <button onclick="stop()">⏹️ Stop</button>
+        <button onclick="location.reload()">🔄 Restart</button>
+    </div>
+
+    <div class="loader" id="loader" style="display: none;"></div>
+    <div class="logs" id="logs"></div>
+
+    <script>
+        async function start() {
+            const folder = document.getElementById("folderInput").value.trim();
+            if (!folder) {
+                alert("Please enter a folder name (e.g., EPR_files)");
+                return;
+            }
+            document.getElementById("loader").style.display = "block";
+            document.getElementById("logs").innerHTML = "";
+
+            const response = await fetch(`/start/${folder}`);
+            const data = await response.json();
+            document.getElementById("loader").style.display = "none";
+
+            data.logs.forEach(line => {
+                const p = document.createElement("p");
+                p.textContent = line;
+                document.getElementById("logs").appendChild(p);
+            });
+        }
+
+        async function stop() {
+            await fetch("/stop", { method: "POST" });
+            const p = document.createElement("p");
+            p.innerHTML = "⏹️ Processing stopped!";
+            document.getElementById("logs").appendChild(p);
+            document.getElementById("loader").style.display = "none";
+        }
+    </script>
+</body>
+
+</html>
