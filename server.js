@@ -18,16 +18,30 @@ let shouldStop = false; // control flag
 
 // Validation rules
 const validationRules = {
-    checkTags: [
-        "GetAircraftTypes",
-        "GetSectors",
-        "GetDelayReasonCodes",
-        "GetAircraftsByDateRange",
-        "CrewBase",
-        "CrewChangedRQ"
-    ],
-    checkValues: {
-        "staffNumber": ["2950", "26368", "6936"]
+    global: {
+        checkTags: [
+            "GetAircraftTypes",
+            "GetSectors",
+            "GetDelayReasonCodes",
+            "GetAircraftsByDateRange",
+            "CrewBase",
+            "CrewChangedRQ",
+            // ... 5 more global tags
+        ],
+        checkValues: {
+            "staffNumber": ["2950", "26368", "6936"]
+        }
+    },
+    staticData: {
+        checkTags: [
+            "City",
+            "Airport",
+            "Country",
+            // ... 150+ more tags only for static data files
+        ],
+        checkValues: {
+            // add any static-data-specific attributes if needed
+        }
     }
 };
 
@@ -74,20 +88,34 @@ app.get("/start/:libraryRoot", async (req, res) => {
             const parsedData = result[rootKey];
             const fileReport = { file, errors: [], passed: [], failed: [] };
 
-            // ---- TAG CHECK ----
-            validationRules.checkTags.forEach(tag => {
+            const isStatic = isStaticDataFile(xmlContent);
+
+            //  ---- GLOBAL TAG CHECK ----
+            validationRules.global.checkTags.forEach(tag => {
                 const tagExists = findTag(parsedData, tag);
                 if (tagExists) {
-                    fileReport.passed.push(`✅ Tag found: ${tag}`);
+                    fileReport.passed.push(`✅ Tag found (global): ${tag}`);
                 } else {
-                    fileReport.failed.push(`❌ Missing tag: ${tag}`);
+                    fileReport.failed.push(`❌ Missing tag (global): ${tag}`);
                 }
             });
 
-            // ---- ATTRIBUTES CHECK ----
+            // ---- STATIC TAG CHECK ----
+            if (isStatic) {
+                validationRules.staticData.checkTags.forEach(tag => {
+                    const tagExists = findTag(parsedData, tag);
+                    if (tagExists) {
+                        fileReport.passed.push(`✅ Tag found (static): ${tag}`);
+                    } else {
+                        fileReport.failed.push(`❌ Missing tag (static): ${tag}`);
+                    }
+                });
+            }
+
+            // ---- ATTRIBUTE CHECK (global only or per group) ----
             let attributeMatched = false;
-            for (const [attribute, expectedValues] of Object.entries(validationRules.checkValues)) {
-                if (checkAttributes(parsedData, validationRules, fileReport)) {
+            for (const [attribute, expectedValues] of Object.entries(validationRules.global.checkValues)) {
+                if (checkAttributes(parsedData, validationRules.global, fileReport)) {
                     attributeMatched = true;
                 }
             }
@@ -169,6 +197,10 @@ function findTag(obj, tag) {
         if (findTag(obj[key], tag)) return true;
     }
     return false;
+}
+
+function isStaticDataFile(xmlContent) {
+    return xmlContent.includes('GetStaticDataRS') || xmlContent.includes('<wsdl:message name="GetStaticDataRS"');
 }
 
 app.listen(PORT, () => {
