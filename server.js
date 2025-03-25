@@ -88,7 +88,7 @@ app.get("/start/:libraryRoot", async (req, res) => {
             const parsedData = result[rootKey];
             const fileReport = { file, errors: [], passed: [], failed: [] };
 
-            const isStatic = isStaticDataFile(xmlContent);
+            const isStatic = isStaticDataFile(parsedData)
 
             //  ---- GLOBAL TAG CHECK ----
             validationRules.global.checkTags.forEach(tag => {
@@ -199,8 +199,24 @@ function findTag(obj, tag) {
     return false;
 }
 
-function isStaticDataFile(xmlContent) {
-    return xmlContent.includes('GetStaticDataRS') || xmlContent.includes('<wsdl:message name="GetStaticDataRS"');
+function isStaticDataFile(parsedData) {
+    let found = false;
+
+    function search(obj) {
+        if (typeof obj !== 'object' || obj === null) return;
+
+        if (obj.ModelName === 'StaticDataService') {
+            found = true;
+            return;
+        }
+
+        for (const key in obj) {
+            search(obj[key]);
+        }
+    }
+
+    search(parsedData);
+    return found;
 }
 
 app.listen(PORT, () => {
