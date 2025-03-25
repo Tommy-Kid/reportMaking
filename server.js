@@ -5,16 +5,16 @@ const xml2js = require("xml2js");
 
 const app = express();
 const PORT = 3000;
+
 const parser = new xml2js.Parser({
     explicitArray: false,
     ignoreAttrs: false,
     tagNameProcessors: [(name) => name.replace(/^.*:/, '')]
 });
 
-// Serve static files (CSS & JS)
 app.use(express.static(path.join(__dirname, "public")));
 
-let shouldStop = false; // control flag
+let shouldStop = false;
 
 // Validation rules
 const validationRules = {
@@ -25,8 +25,7 @@ const validationRules = {
             "GetDelayReasonCodes",
             "GetAircraftsByDateRange",
             "CrewBase",
-            "CrewChangedRQ",
-            // ... 5 more global tags
+            "CrewChangedRQ"
         ],
         checkValues: {
             "staffNumber": ["2950", "26368", "6936"]
@@ -34,38 +33,29 @@ const validationRules = {
     },
     staticData: {
         checkTags: [
-            "City",
-            "Airport",
-            "Country",
-            // ... 150+ more tags only for static data files
+            "City", "Airport", "Country"
+            // ... add the remaining 150+ here
         ],
         checkValues: {
-            // add any static-data-specific attributes if needed
+            // add static-specific attribute checks if needed
         }
     }
 };
 
-// Render UI
 app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// API to start processing
 app.get("/start/:libraryRoot", async (req, res) => {
     shouldStop = false;
     const libraryRoot = req.params.libraryRoot;
     const folderPath = path.join(__dirname, libraryRoot);
 
-    if (!fs.existsSync(folderPath)) {
-        return res.json({ error: "Directory not found" });
-    }
+    if (!fs.existsSync(folderPath)) return res.json({ error: "Directory not found" });
 
     const files = fs.readdirSync(folderPath).filter(file => file.endsWith(".xml"));
-    if (files.length === 0) {
-        return res.json({ error: "No XML files found!" });
-    }
+    if (files.length === 0) return res.json({ error: "No XML files found!" });
 
-    // Create timestamped report file (e.g., report-2025-03-17-15-30-12.txt)
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const reportFileName = `report-${timestamp}.txt`;
     const reportFile = path.join(__dirname, reportFileName);
@@ -88,34 +78,33 @@ app.get("/start/:libraryRoot", async (req, res) => {
             const parsedData = result[rootKey];
             const fileReport = { file, errors: [], passed: [], failed: [] };
 
-            const isStatic = isStaticDataFile(parsedData)
+            const isStatic = isStaticDataFile(parsedData);
 
-            //  ---- GLOBAL TAG CHECK ----
+            // Global tag checks
             validationRules.global.checkTags.forEach(tag => {
                 const tagExists = findTag(parsedData, tag);
-                if (tagExists) {
-                    fileReport.passed.push(`✅ Tag found (global): ${tag}`);
-                } else {
-                    fileReport.failed.push(`❌ Missing tag (global): ${tag}`);
-                }
+                tagExists
+                    ? fileReport.passed.push(`✅ Tag found (global): ${tag}`)
+                    : fileReport.failed.push(`❌ Missing tag (global): ${tag}`);
             });
 
-            // ---- STATIC TAG CHECK ----
+            // Static data tag checks
             if (isStatic) {
+                logs.push(`🟢 Detected as Static Data file: ${file}`);
                 validationRules.staticData.checkTags.forEach(tag => {
                     const tagExists = findTag(parsedData, tag);
-                    if (tagExists) {
-                        fileReport.passed.push(`✅ Tag found (static): ${tag}`);
-                    } else {
-                        fileReport.failed.push(`❌ Missing tag (static): ${tag}`);
-                    }
+                    tagExists
+                        ? fileReport.passed.push(`✅ Tag found (static): ${tag}`)
+                        : fileReport.failed.push(`❌ Missing tag (static): ${tag}`);
                 });
             }
 
-            // ---- ATTRIBUTE CHECK (global only or per group) ----
+            // Attribute checks (global only for now)
             let attributeMatched = false;
+            const matchedAttributes = new Set();
+
             for (const [attribute, expectedValues] of Object.entries(validationRules.global.checkValues)) {
-                if (checkAttributes(parsedData, validationRules.global, fileReport)) {
+                if (checkAttributes(parsedData, attribute, expectedValues, fileReport, matchedAttributes)) {
                     attributeMatched = true;
                 }
             }
@@ -126,7 +115,7 @@ app.get("/start/:libraryRoot", async (req, res) => {
                 report.failed.push(fileReport);
             }
 
-            // ---- Write to report file ----
+            // Write result to report file
             let txtBlock = `\n🗂️ File: ${file}\n`;
             if (fileReport.passed.length > 0) {
                 txtBlock += `✔️ PASSED:\n`;
@@ -149,45 +138,33 @@ app.get("/start/:libraryRoot", async (req, res) => {
     }
 
     if (!shouldStop) {
-        fs.appendFileSync(reportFile, `🎉 Összes fájl feldolgozva!\n`, "utf-8");
-        logs.push("🎉 Összes fájl feldolgozva!");
+        fs.appendFileSync(reportFile, `🎉 All files processed!\n`, "utf-8");
+        logs.push("🎉 All files processed!");
     }
 
     res.json({ logs, passed: report.passed.length, failed: report.failed.length, reportFile: reportFileName });
 });
 
-// API to stop processing
 app.post("/stop", (req, res) => {
     shouldStop = true;
     res.json({ status: "stopping" });
 });
 
-// Utility functions
-function checkAttributes(obj, validationRules, fileReport, matchedAttributes = new Set()) {
-    let matched = false;
-    for (const key in obj) {
-        if (typeof obj[key] === "object" && obj[key] !== null) {
-            if (obj[key].hasOwnProperty("$")) {
-                for (const [attribute, expectedValues] of Object.entries(validationRules.checkValues)) {
-                    if (obj[key].$.hasOwnProperty(attribute)) {
-                        if (expectedValues.includes(obj[key].$[attribute])) {
-                            if (!matchedAttributes.has(`${attribute}=${obj[key].$[attribute]}`)) {
-                                fileReport.passed.push(`✅ Attribute match: ${attribute} = ${obj[key].$[attribute]}`);
-                                matchedAttributes.add(`${attribute}=${obj[key].$[attribute]}`);
-                            }
-                            matched = true;
-                        } else {
-                            fileReport.failed.push(`❌ Attribute mismatch: ${attribute} found ${obj[key].$[attribute]}, expected one of ${expectedValues.join(", ")}`);
-                        }
-                    }
-                }
-            }
-            if (checkAttributes(obj[key], validationRules, fileReport, matchedAttributes)) {
-                matched = true;
-            }
+// UTILITIES
+
+function isStaticDataFile(parsedData) {
+    let found = false;
+    function search(obj) {
+        if (typeof obj !== 'object' || obj === null) return;
+        if (obj.ModelName === 'StaticDataService') {
+            found = true;
+        }
+        for (const key in obj) {
+            search(obj[key]);
         }
     }
-    return matched;
+    search(parsedData);
+    return found;
 }
 
 function findTag(obj, tag) {
@@ -199,24 +176,32 @@ function findTag(obj, tag) {
     return false;
 }
 
-function isStaticDataFile(parsedData) {
-    let found = false;
+function checkAttributes(obj, attribute, expectedValues, fileReport, matchedSet) {
+    let matched = false;
+    for (const key in obj) {
+        const value = obj[key];
+        if (typeof value === "object" && value !== null) {
+            if (value.$ && value.$[attribute]) {
+                const attrValue = value.$[attribute];
+                const matchKey = `${attribute}=${attrValue}`;
 
-    function search(obj) {
-        if (typeof obj !== 'object' || obj === null) return;
-
-        if (obj.ModelName === 'StaticDataService') {
-            found = true;
-            return;
-        }
-
-        for (const key in obj) {
-            search(obj[key]);
+                if (expectedValues.includes(attrValue)) {
+                    if (!matchedSet.has(matchKey)) {
+                        fileReport.passed.push(`✅ Attribute match: ${attribute} = ${attrValue}`);
+                        matchedSet.add(matchKey);
+                    }
+                    matched = true;
+                } else if (!matchedSet.has(matchKey)) {
+                    fileReport.failed.push(`❌ Attribute mismatch: ${attribute} found ${attrValue}, expected one of ${expectedValues.join(", ")}`);
+                    matchedSet.add(matchKey);
+                }
+            }
+            if (checkAttributes(value, attribute, expectedValues, fileReport, matchedSet)) {
+                matched = true;
+            }
         }
     }
-
-    search(parsedData);
-    return found;
+    return matched;
 }
 
 app.listen(PORT, () => {
