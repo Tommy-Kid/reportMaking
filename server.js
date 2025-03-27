@@ -24,7 +24,6 @@ const validationRules = {
             "GetSectors",
             "GetDelayReasonCodes",
             "GetAircraftsByDateRange",
-            "CrewBase",
             "CrewChangedRQ"
         ],
         checkValues: {
@@ -33,11 +32,14 @@ const validationRules = {
     },
     staticData: {
         checkTags: [
-            "City", "Airport", "Country"
+            "city", "base", "serviceTypeCode","functionCode","baseCode","aircraftCode",
             // ... add the remaining 150+ here
         ],
         checkValues: {
-            // add static-specific attribute checks if needed
+            "baseCode": ["EPR"],
+            "serviceTypeCode": ["W"],
+            "city": ["GYO"],
+            "aircraftCode":["HA-EPR"],
         }
     }
 };
@@ -109,6 +111,14 @@ app.get("/start/:libraryRoot", async (req, res) => {
                 }
             }
 
+            if (isStatic) {
+                for (const [attribute, expectedValues] of Object.entries(validationRules.staticData.checkValues)) {
+                    if (checkAttributes(parsedData, attribute, expectedValues, fileReport, matchedAttributes)) {
+                        attributeMatched = true;
+                    }
+                }
+            }
+
             if (fileReport.passed.length > 0 || attributeMatched) {
                 report.passed.push(fileReport);
             } else {
@@ -154,17 +164,35 @@ app.post("/stop", (req, res) => {
 
 function isStaticDataFile(parsedData) {
     let found = false;
+
     function search(obj) {
-        if (typeof obj !== 'object' || obj === null) return;
-        if (obj.ModelName === 'StaticDataService') {
-            found = true;
-        }
+        if (typeof obj !== 'object' || obj === null || found) return;
+
         for (const key in obj) {
+            if (validationRules.staticData.checkTags.includes(key)) {
+                found = true;
+                break;
+            }
             search(obj[key]);
         }
     }
+
     search(parsedData);
     return found;
+}
+
+function search(obj) {
+    if (typeof obj !== 'object' || obj === null || found) return;
+
+    for (const key in obj) {
+        console.log("Checking key:", key); // <- Add this to debug
+        if (key.toLowerCase().includes('static') || key.toLowerCase().includes('cmxsd')) {
+            found = true;
+            break;
+        }
+
+        search(obj[key]);
+    }
 }
 
 function findTag(obj, tag) {
